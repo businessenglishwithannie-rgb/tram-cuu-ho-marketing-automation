@@ -1,0 +1,1 @@
+{"name":"tram-cuu-ho-marketing-automation","version":"1.0.0","private":true,"scripts":{"test":"node --test --test-isolation=none tests/*.test.cjs"},"devDependencies":{"@google/clasp":"^3.0.0"}}

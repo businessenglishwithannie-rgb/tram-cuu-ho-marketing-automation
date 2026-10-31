@@ -1,0 +1,16 @@
+function tick(){return locked_(function(){var start=Date.now();try{
+ tokenReminder_();var list=rows_();
+ // Recover receipts even if Sheets write failed after a successful Meta response.
+ list.forEach(function(r){var j=journal_(r.ID);if(!j)return;if(j.state==='DONE'&&r['Trạng thái']!=='Đã đăng')applyReceipt_(r,j);else if(j.state!=='DONE'&&r['Trạng thái']!=='Lỗi'){j.state='UNKNOWN';journalSave_(r.ID,j);r['Trạng thái']='Lỗi';r['Lỗi']='Có publishing journal chưa hoàn tất. Đối soát Meta trước khi thử lại.';save_(r);log_(r.ID,'RECOVER_UNKNOWN',r['Lỗi']);}});
+ var due=list.find(function(r){return due_(r,Date.now(),Number(cfg_('MAX_LATENESS_MINUTES','120')))&&!journal_(r.ID);});if(due){publish_(due);refreshDashboard();return;}
+ var cmd=list.find(function(r){return !!r['Lệnh'];});if(cmd){try{command_(cmd);}catch(e){cmd['Lệnh']='';cmd['Lỗi']=redact_(e.message);save_(cmd);}return;}
+ var work=list.find(function(r){return r['Trạng thái']==='Chờ duyệt'&&['TEXT','IMAGE'].indexOf(r['Giai đoạn'])>=0&&(!r['Thử lại lúc']||new Date(r['Thử lại lúc']).getTime()<=Date.now());});if(work){try{if(work['Giai đoạn']==='TEXT')writeContent_(work);else generateImage_(work);work['Lần thử']=0;work['Thử lại lúc']='';work['Lỗi']='';save_(work);if(work['Giai đoạn']==='READY')notify_(work);}catch(e){fail_(work,e);}refreshDashboard();return;}
+ if(Date.now()-start<20000)prepareDay_(list);refreshDashboard();
+ }catch(e){log_('','TICK_ERROR',redact_(e.message));}});}
+function prepareDay_(list){var offset=Number(cfg_('PREPARE_DAYS_AHEAD','1'));if(!Number.isInteger(offset)||offset<0||offset>7)throw Error('PREPARE_DAYS_AHEAD phải là 0–7');var date=day_(new Date(Date.now()+offset*86400000));var key='ideas:'+date,retryKey='ideasRetry:'+date;if(Number(cfg_(retryKey,'0'))>Date.now())return;var plan=cfg_(key,'');
+ var ids=APP.slots.map(function(t){return date+'-'+t.replace(':','');});if(ids.every(function(id){return list.some(function(r){return r.ID===id;});}))return;
+ if(!plan){try{plan=JSON.stringify(ideas_(date,list));props_().setProperty(key,plan);props_().deleteProperty(retryKey);}catch(e){props_().setProperty(retryKey,String(Date.now()+3600000));throw e;}}
+ var ideas=JSON.parse(plan);APP.slots.forEach(function(time,i){if(list.some(function(r){return r.ID===ids[i];}))return;var x=ideas[i];append_({ID:ids[i],'Ngày đăng':date,'Giờ đăng':time,'Chủ đề':x.category,'Ý tưởng':x.idea+' — '+x.angle,'Tiêu đề':x.title,'Đối tượng':x.audience,'Trạng thái':'Chờ duyệt','Giai đoạn':'TEXT'});});
+}
+function notify_(r){var email=cfg_('ADMIN_EMAIL','');if(email&&MailApp.getRemainingDailyQuota()>0){try{MailApp.sendEmail(email,'[Trạm Cứu Hộ Marketing] Bài mới cần duyệt',r.ID+'\n'+r['Tiêu đề']+'\n'+book_().getUrl());}catch(e){log_(r.ID,'EMAIL_ERROR',e.message);}}}
+function tokenReminder_(){var review=cfg_('TOKEN_REVIEW_DATE',''),today=day_(new Date()),email=cfg_('ADMIN_EMAIL','');if(!/^\d{4}-\d{2}-\d{2}$/.test(review)||review>today||cfg_('tokenReminderDay','')===today)return;if(email&&MailApp.getRemainingDailyQuota()>0){try{MailApp.sendEmail(email,'[Trạm Cứu Hộ Marketing] Kiểm tra Page token','Đã đến ngày kiểm tra token '+review+'. Kiểm tra Access Token Debugger và cập nhật Script Properties theo quy trình Meta. Không gửi token qua email.');props_().setProperty('tokenReminderDay',today);}catch(e){log_('','TOKEN_REMINDER_ERROR',e.message);}}}
