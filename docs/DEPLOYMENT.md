@@ -21,6 +21,8 @@
 
 ## 3. Kiểm thử offline
 
+Nếu API trả 429, chạy `diagnoseOpenAI()` để thực hiện một yêu cầu Responses tối thiểu. Log chỉ lưu HTTP status, error.code và error.type đã lọc, không lưu khóa hoặc raw error message. `credit_balance_exhausted` / `insufficient_quota` cần kiểm tra Billing, số dư và hạn mức tài khoản; adapter không retry tức thời các lỗi quota này. `rate_limit_exceeded` có retry/backoff. GET model thành công không có nghĩa tài khoản đủ số dư để tạo nội dung.
+
 ```powershell
 npm test
 ```
